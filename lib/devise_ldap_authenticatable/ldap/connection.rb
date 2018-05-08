@@ -1,9 +1,10 @@
 module Devise
   module LDAP
     class Connection
-      attr_reader :ldap, :login
+      attr_reader :ldap, :login, :errors
 
       def initialize(params = {})
+        @errors = []
         if ::Devise.ldap_config.is_a?(Proc)
           ldap_config = ::Devise.ldap_config.call
         else
@@ -76,6 +77,7 @@ module Devise
       end
 
       def authenticate!
+        @errors = []
         return false unless (@password.present? || @allow_unauthenticated_bind)
         @ldap.auth(dn, @password)
         @ldap.bind
@@ -97,22 +99,22 @@ module Devise
         DeviseLdapAuthenticatable::Logger.send("Authorizing user #{dn}")
         if !authenticated?
           if last_message_bad_credentials?
-            DeviseLdapAuthenticatable::Logger.send("Not authorized because of invalid credentials.")
+            error("Not authorized because of invalid credentials.")
           elsif last_message_expired_credentials?
-            DeviseLdapAuthenticatable::Logger.send("Not authorized because of expired credentials.")
+            error("Not authorized because of expired credentials.")
           else
-            DeviseLdapAuthenticatable::Logger.send("Not authorized because not authenticated.")
+            error("Not authorized because not authenticated.")
           end
 
           return false
         elsif !in_required_groups?
-          DeviseLdapAuthenticatable::Logger.send("Not authorized because not in required groups.")
+          error("Not authorized because not in required groups.")
           return false
         elsif !has_required_attribute?
-          DeviseLdapAuthenticatable::Logger.send("Not authorized because does not have required attribute.")
+          error("Not authorized because does not have required attribute.")
           return false
         elsif !has_required_attribute_presence?
-          DeviseLdapAuthenticatable::Logger.send("Not authorized because does not have required attribute present.")
+          error("Not authorized because does not have required attribute present.")
           return false
         else
           return true
@@ -244,6 +246,11 @@ module Devise
           DeviseLdapAuthenticatable::Logger.send("LDAP search yielded #{match_count} matches")
           ldap_entry
         end
+      end
+
+      def error(msg)
+        DeviseLdapAuthenticatable::Logger.send(msg)
+        @errors << msg
       end
 
       private

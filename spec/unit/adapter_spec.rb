@@ -16,6 +16,7 @@ describe Devise::LDAP::Adapter do
                   :admin => true)).and_call_original
 
       Devise::LDAP::Adapter.expired_valid_credentials?('test.user@test.com', 'pass')
+      expect(Devise::LDAP::Adapter.last_connection).to_not be_nil
     end
   end
 end
