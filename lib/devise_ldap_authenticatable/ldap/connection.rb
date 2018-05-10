@@ -87,6 +87,10 @@ module Devise
         authenticate!
       end
 
+      def last_message_locked_account?
+        @ldap.get_operation_result.error_message.to_s.include? 'AcceptSecurityContext error, data 775'
+      end
+
       def last_message_bad_credentials?
         @ldap.get_operation_result.error_message.to_s.include? 'AcceptSecurityContext error, data 52e'
       end
@@ -102,6 +106,8 @@ module Devise
             error("Not authorized because of invalid credentials.")
           elsif last_message_expired_credentials?
             error("Not authorized because of expired credentials.")
+          elsif last_message_locked_account?
+            error("Not authorized because your account has been locked.")
           else
             error("Not authorized because not authenticated.")
           end
