@@ -96,7 +96,8 @@ module Devise
       end
 
       def last_message_expired_credentials?
-        @ldap.get_operation_result.error_message.to_s.include? 'AcceptSecurityContext error, data 773'
+        error_string = @ldap.get_operation_result.error_message.to_s
+        error_string.include?('AcceptSecurityContext error, data 773') || error_string.include?('AcceptSecurityContext error, data 532')
       end
 
       def authorized?
