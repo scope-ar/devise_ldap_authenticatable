@@ -12,12 +12,15 @@ module Devise
         end
         ldap_options = params
 
-        if ldap_config["ssl"].is_a?(::Hash)
-          ldap_options[:encryption] = ldap_config["ssl"].symbolize_keys
-        else if ldap_config["ssl"] === true
-          ldap_options[:encryption] = :simple_tls
-        else if ldap_config["ssl"]
-          ldap_options[:encryption] = ldap_config["ssl"].to_sym
+        if ldap_config["ssl"]
+          ldap_options[:encryption] = {
+            method: :simple_tls
+          }
+          unless ldap_config["ssl_verify"]
+            ldap_options[:encryption][:tls_options] = {
+              verify_mode: OpenSSL::SSL::VERIFY_NONE
+            }
+          end
         end
 
         @ldap = Net::LDAP.new(ldap_options)
