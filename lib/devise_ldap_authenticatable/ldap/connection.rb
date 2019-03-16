@@ -12,14 +12,21 @@ module Devise
         end
         ldap_options = params
 
-        if ldap_config["ssl"]
-          ldap_options[:encryption] = {
-            method: :simple_tls
-          }
-          unless ldap_config["ssl_verify"]
-            ldap_options[:encryption][:tls_options] = {
-              verify_mode: OpenSSL::SSL::VERIFY_NONE
+        if ldap_config.nil?
+          error("LDAP empty config for environment: #{Rails.env}")
+          return
+        end
+
+        if ldap_config.is_a? Hash
+          if ldap_config["ssl"]
+            ldap_options[:encryption] = {
+              method: :simple_tls
             }
+            unless ldap_config["ssl_verify"]
+              ldap_options[:encryption][:tls_options] = {
+                verify_mode: OpenSSL::SSL::VERIFY_NONE
+              }
+            end
           end
         end
 
