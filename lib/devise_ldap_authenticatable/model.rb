@@ -48,6 +48,10 @@ module Devise
         Devise::LDAP::Adapter.valid_credentials?(login_with, password)
       end
 
+      def ldap_connection
+        Devise::LDAP::Adapter.last_connection
+      end
+
       def ldap_entry
         @ldap_entry ||= Devise::LDAP::Adapter.get_ldap_entry(login_with)
       end

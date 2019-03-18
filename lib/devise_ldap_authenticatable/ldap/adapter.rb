@@ -5,14 +5,16 @@ module Devise
     DEFAULT_GROUP_UNIQUE_MEMBER_LIST_KEY = 'uniqueMember'
     
     module Adapter
+      @last_connection = nil
+
       def self.valid_credentials?(login, password_plaintext)
         options = {:login => login,
                    :password => password_plaintext,
                    :ldap_auth_username_builder => ::Devise.ldap_auth_username_builder,
                    :admin => ::Devise.ldap_use_admin_to_bind}
 
-        resource = Devise::LDAP::Connection.new(options)
-        resource.authorized?
+        @last_connection = Devise::LDAP::Connection.new(options)
+        @last_connection.authorized?
       end
 
       def self.expired_valid_credentials?(login, password_plaintext)
@@ -21,8 +23,8 @@ module Devise
                    :ldap_auth_username_builder => ::Devise.ldap_auth_username_builder,
                    :admin => ::Devise.ldap_use_admin_to_bind}
 
-        resource = Devise::LDAP::Connection.new(options)
-        resource.expired_valid_credentials?
+        @last_connection = Devise::LDAP::Connection.new(options)
+        @last_connection.expired_valid_credentials?
       end
 
       def self.update_password(login, new_password)
@@ -31,8 +33,8 @@ module Devise
                    :ldap_auth_username_builder => ::Devise.ldap_auth_username_builder,
                    :admin => ::Devise.ldap_use_admin_to_bind}
 
-        resource = Devise::LDAP::Connection.new(options)
-        resource.change_password! if new_password.present?
+        @last_connection = Devise::LDAP::Connection.new(options)
+        @last_connection.change_password! if new_password.present?
       end
 
       def self.update_own_password(login, new_password, current_password)
@@ -48,19 +50,19 @@ module Devise
       end
 
       def self.valid_login?(login)
-        self.ldap_connect(login).valid_login?
+        @last_connection = ldap_connect(login).valid_login?
       end
 
       def self.get_groups(login)
-        self.ldap_connect(login).user_groups
+        @last_connection = ldap_connect(login).user_groups
       end
 
       def self.in_ldap_group?(login, group_name, group_attribute = nil)
-        self.ldap_connect(login).in_group?(group_name, group_attribute)
+        @last_connection = ldap_connect(login).in_group?(group_name, group_attribute)
       end
 
       def self.get_dn(login)
-        self.ldap_connect(login).dn
+        @last_connection = ldap_connect(login).dn
       end
 
       def self.set_ldap_param(login, param, new_value, password = nil)
@@ -68,8 +70,8 @@ module Devise
                    :ldap_auth_username_builder => ::Devise.ldap_auth_username_builder,
                    :password => password }
 
-        resource = Devise::LDAP::Connection.new(options)
-        resource.set_param(param, new_value)
+        @last_connection = Devise::LDAP::Connection.new(options)
+        @last_connection.set_param(param, new_value)
       end
 
       def self.delete_ldap_param(login, param, password = nil)
@@ -77,17 +79,21 @@ module Devise
                    :ldap_auth_username_builder => ::Devise.ldap_auth_username_builder,
                    :password => password }
 
-        resource = Devise::LDAP::Connection.new(options)
-        resource.delete_param(param)
+        @last_connection = Devise::LDAP::Connection.new(options)
+        @last_connection.delete_param(param)
       end
 
       def self.get_ldap_param(login,param)
-        resource = self.ldap_connect(login)
-        resource.ldap_param_value(param)
+        @last_connection = ldap_connect(login)
+        @last_connection.ldap_param_value(param)
       end
 
       def self.get_ldap_entry(login)
-        self.ldap_connect(login).search_for_login
+        @last_connection = ldap_connect(login).search_for_login
+      end
+
+      def self.last_connection
+        @last_connection
       end
     end
   end

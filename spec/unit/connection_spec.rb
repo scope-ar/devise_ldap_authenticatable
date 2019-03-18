@@ -33,7 +33,14 @@ describe 'Connection' do
 
     context do
       let(:error) { 'THIS PART CAN BE ANYTHING AcceptSecurityContext error, data 773 SO CAN THIS' }
-      it 'is true when expired credential error is returned and not already authenticated' do
+      it 'is true when expired credential error 773 is returned and not already authenticated' do
+        expect(subject).to be true
+      end
+    end
+
+    context do
+      let(:error) { 'THIS PART CAN BE ANYTHING AcceptSecurityContext error, data 532 SO CAN THIS' }
+      it 'is true when expired credential error 532 is returned and not already authenticated' do
         expect(subject).to be true
       end
     end

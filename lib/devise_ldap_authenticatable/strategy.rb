@@ -11,7 +11,6 @@ module Devise
       # are invalid.
       def authenticate!
         resource = mapping.to.find_for_ldap_authentication(authentication_hash.merge(:password => password))
-
         return fail(:invalid) unless resource
 
         if resource.persisted?
@@ -20,6 +19,7 @@ module Devise
             resource.after_ldap_authentication
             success!(resource)
           else
+            resource.ldap_connection.errors.map { |msg| errors.add :general, msg }
             return fail(:invalid) # Invalid credentials
           end
         end

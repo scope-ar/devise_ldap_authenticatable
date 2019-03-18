@@ -1,17 +1,34 @@
 module Devise
   module LDAP
     class Connection
-      attr_reader :ldap, :login
+      attr_reader :ldap, :login, :errors
 
       def initialize(params = {})
+        @errors = []
         if ::Devise.ldap_config.is_a?(Proc)
           ldap_config = ::Devise.ldap_config.call
         else
           ldap_config = YAML.load(ERB.new(File.read(::Devise.ldap_config || "#{Rails.root}/config/ldap.yml")).result)[Rails.env]
         end
         ldap_options = params
-        ldap_config["ssl"] = :simple_tls if ldap_config["ssl"] === true
-        ldap_options[:encryption] = ldap_config["ssl"].to_sym if ldap_config["ssl"]
+
+        if ldap_config.nil?
+          error("LDAP empty config for environment: #{Rails.env}")
+          return
+        end
+
+        if ldap_config.is_a? Hash
+          if ldap_config["ssl"]
+            ldap_options[:encryption] = {
+              method: :simple_tls
+            }
+            unless ldap_config["ssl_verify"]
+              ldap_options[:encryption][:tls_options] = {
+                verify_mode: OpenSSL::SSL::VERIFY_NONE
+              }
+            end
+          end
+        end
 
         @ldap = Net::LDAP.new(ldap_options)
         @ldap.host = ldap_config["host"]
@@ -76,6 +93,7 @@ module Devise
       end
 
       def authenticate!
+        @errors = []
         return false unless (@password.present? || @allow_unauthenticated_bind)
         @ldap.auth(dn, @password)
         @ldap.bind
@@ -85,34 +103,41 @@ module Devise
         authenticate!
       end
 
+      def last_message_locked_account?
+        @ldap.get_operation_result.error_message.to_s.include? 'AcceptSecurityContext error, data 775'
+      end
+
       def last_message_bad_credentials?
         @ldap.get_operation_result.error_message.to_s.include? 'AcceptSecurityContext error, data 52e'
       end
 
       def last_message_expired_credentials?
-        @ldap.get_operation_result.error_message.to_s.include? 'AcceptSecurityContext error, data 773'
+        error_string = @ldap.get_operation_result.error_message.to_s
+        error_string.include?('AcceptSecurityContext error, data 773') || error_string.include?('AcceptSecurityContext error, data 532')
       end
 
       def authorized?
         DeviseLdapAuthenticatable::Logger.send("Authorizing user #{dn}")
         if !authenticated?
           if last_message_bad_credentials?
-            DeviseLdapAuthenticatable::Logger.send("Not authorized because of invalid credentials.")
+            error("Not authorized because of invalid credentials.")
           elsif last_message_expired_credentials?
-            DeviseLdapAuthenticatable::Logger.send("Not authorized because of expired credentials.")
+            error("Not authorized because of expired credentials.")
+          elsif last_message_locked_account?
+            error("Not authorized because your account has been locked.")
           else
-            DeviseLdapAuthenticatable::Logger.send("Not authorized because not authenticated.")
+            error("Not authorized because not authenticated.")
           end
 
           return false
         elsif !in_required_groups?
-          DeviseLdapAuthenticatable::Logger.send("Not authorized because not in required groups.")
+          error("Not authorized because not in required groups.")
           return false
         elsif !has_required_attribute?
-          DeviseLdapAuthenticatable::Logger.send("Not authorized because does not have required attribute.")
+          error("Not authorized because does not have required attribute.")
           return false
         elsif !has_required_attribute_presence?
-          DeviseLdapAuthenticatable::Logger.send("Not authorized because does not have required attribute present.")
+          error("Not authorized because does not have required attribute present.")
           return false
         else
           return true
@@ -244,6 +269,11 @@ module Devise
           DeviseLdapAuthenticatable::Logger.send("LDAP search yielded #{match_count} matches")
           ldap_entry
         end
+      end
+
+      def error(msg)
+        DeviseLdapAuthenticatable::Logger.send(msg)
+        @errors << msg
       end
 
       private
