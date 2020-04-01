@@ -3,6 +3,9 @@ module Devise
     class Connection
       attr_reader :ldap, :login, :errors
 
+      MAX_RETRIES = 4
+      RETRIABLE_ERROR_CODES = [11, 80]
+
       def initialize(params = {})
         @errors = []
         if ::Devise.ldap_config.is_a?(Proc)
@@ -96,7 +99,14 @@ module Devise
         @errors = []
         return false unless (@password.present? || @allow_unauthenticated_bind)
         @ldap.auth(dn, @password)
-        @ldap.bind
+
+        result = false
+        MAX_RETRIES.times do
+          result = @ldap.bind
+          op_result= @ldap.get_operation_result
+          break unless RETRIABLE_ERROR_CODES.include?(op_result.code)
+        end
+        result
       end
 
       def authenticated?
@@ -260,9 +270,13 @@ module Devise
           DeviseLdapAuthenticatable::Logger.send("LDAP search for login: #{@attribute}=#{@login}")
           filter = Net::LDAP::Filter.eq(@attribute.to_s, @login.to_s)
           ldap_entry = nil
+          op_result = nil
           match_count = 0
-          @ldap.search(:filter => filter) {|entry| ldap_entry = entry; match_count+=1}
-          op_result= @ldap.get_operation_result
+          MAX_RETRIES.times do
+            @ldap.search(:filter => filter) {|entry| ldap_entry = entry; match_count+=1}
+            op_result= @ldap.get_operation_result
+            break unless RETRIABLE_ERROR_CODES.include?(op_result.code)
+          end
           if op_result.code!=0 then
             DeviseLdapAuthenticatable::Logger.send("LDAP Error #{op_result.code}: #{op_result.message}")
           end
